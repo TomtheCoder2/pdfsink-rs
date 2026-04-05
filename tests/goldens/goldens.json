@@ -1,0 +1,373 @@
+{
+  "crop_regions": {
+    "file": "crop_regions.pdf",
+    "page_count": 1,
+    "pages": [
+      {
+        "crop_cases": {
+          "left_half_crop_text": "LEFT TOP\nLEFT BOTTOM",
+          "left_half_outside_text": "RIGHT TOP\nRIGHT BOTTOM"
+        },
+        "height": 792,
+        "object_counts": {
+          "annots": 0,
+          "chars": 40,
+          "curves": 0,
+          "hyperlinks": 0,
+          "images": 0,
+          "lines": 1,
+          "rects": 0
+        },
+        "page_number": 1,
+        "rotation": 0,
+        "text": "LEFT TOP RIGHT TOP\nLEFT BOTTOM RIGHT BOTTOM",
+        "width": 612,
+        "word_texts": [
+          "LEFT",
+          "TOP",
+          "RIGHT",
+          "TOP",
+          "LEFT",
+          "BOTTOM",
+          "RIGHT",
+          "BOTTOM"
+        ]
+      }
+    ]
+  },
+  "multipage": {
+    "file": "multipage.pdf",
+    "page_count": 2,
+    "pages": [
+      {
+        "height": 792,
+        "object_counts": {
+          "annots": 0,
+          "chars": 8,
+          "curves": 0,
+          "hyperlinks": 0,
+          "images": 0,
+          "lines": 0,
+          "rects": 0
+        },
+        "page_number": 1,
+        "rotation": 0,
+        "text": "Page One",
+        "width": 612,
+        "word_texts": [
+          "Page",
+          "One"
+        ]
+      },
+      {
+        "height": 792,
+        "object_counts": {
+          "annots": 0,
+          "chars": 8,
+          "curves": 0,
+          "hyperlinks": 0,
+          "images": 0,
+          "lines": 0,
+          "rects": 0
+        },
+        "page_number": 2,
+        "rotation": 0,
+        "text": "Page Two",
+        "width": 612,
+        "word_texts": [
+          "Page",
+          "Two"
+        ]
+      }
+    ]
+  },
+  "objects_showcase": {
+    "file": "objects_showcase.pdf",
+    "page_count": 1,
+    "pages": [
+      {
+        "curve0": {
+          "bottom": 172.0,
+          "height": 0.0,
+          "top": 172.0,
+          "width": 110.0,
+          "x0": 250.0,
+          "x1": 360.0
+        },
+        "height": 792,
+        "hyperlinks": [
+          {
+            "bottom": 217,
+            "height": 15,
+            "top": 202,
+            "uri": "https://openai.com",
+            "width": 68,
+            "x0": 72,
+            "x1": 140
+          }
+        ],
+        "image0": {
+          "bottom": 172.0,
+          "height": 40.0,
+          "name": "FormXob.0d769736ae9301ac4aa615d105e4b54b",
+          "srcsize": [
+            40,
+            40
+          ],
+          "top": 132.0,
+          "width": 40.0,
+          "x0": 420.0,
+          "x1": 460.0
+        },
+        "line0": {
+          "bottom": 92.0,
+          "height": 0.0,
+          "top": 92.0,
+          "width": 128.0,
+          "x0": 72.0,
+          "x1": 200.0
+        },
+        "object_counts": {
+          "annots": 1,
+          "chars": 27,
+          "curves": 1,
+          "hyperlinks": 1,
+          "images": 1,
+          "lines": 1,
+          "rects": 1
+        },
+        "page_number": 1,
+        "rect0": {
+          "bottom": 172.0,
+          "height": 40.0,
+          "top": 132.0,
+          "width": 100.0,
+          "x0": 72.0,
+          "x1": 172.0
+        },
+        "rotation": 0,
+        "text": "Objects Showcase\nOpenAI Link",
+        "width": 612,
+        "word_texts": [
+          "Objects",
+          "Showcase",
+          "OpenAI",
+          "Link"
+        ]
+      }
+    ]
+  },
+  "rotated_and_duplicates": {
+    "file": "rotated_and_duplicates.pdf",
+    "page_count": 1,
+    "pages": [
+      {
+        "deduped_char_count": 17,
+        "height": 792,
+        "object_counts": {
+          "annots": 0,
+          "chars": 26,
+          "curves": 0,
+          "hyperlinks": 0,
+          "images": 0,
+          "lines": 0,
+          "rects": 0
+        },
+        "page_number": 1,
+        "rotation": 0,
+        "text": "DDUUPPLLIICCAATTEE\nLACITREV",
+        "width": 612,
+        "word_texts": [
+          "DDUUPPLLIICCAATTEE",
+          "LACITREV"
+        ]
+      }
+    ]
+  },
+  "simple_text": {
+    "file": "simple_text.pdf",
+    "page_count": 1,
+    "pages": [
+      {
+        "height": 792,
+        "object_counts": {
+          "annots": 0,
+          "chars": 44,
+          "curves": 0,
+          "hyperlinks": 0,
+          "images": 0,
+          "lines": 0,
+          "rects": 0
+        },
+        "page_number": 1,
+        "rotation": 0,
+        "search_second": [
+          {
+            "bbox": {
+              "bottom": 94.484,
+              "top": 82.484,
+              "x0": 83.34,
+              "x1": 122.028
+            },
+            "char_count": 6,
+            "text": "second"
+          }
+        ],
+        "text": "Hello world\nA second line with 123\nRight block",
+        "width": 612,
+        "word_texts": [
+          "Hello",
+          "world",
+          "A",
+          "second",
+          "line",
+          "with",
+          "123",
+          "Right",
+          "block"
+        ]
+      }
+    ]
+  },
+  "table_lines": {
+    "file": "table_lines.pdf",
+    "page_count": 1,
+    "pages": [
+      {
+        "default_table": [
+          [
+            "Name",
+            "Age",
+            "City"
+          ],
+          [
+            "Alice",
+            "31",
+            "Oakland"
+          ],
+          [
+            "Bob",
+            "27",
+            "Berkeley"
+          ],
+          [
+            "Cara",
+            "29",
+            "San Jose"
+          ]
+        ],
+        "default_table_bbox": {
+          "bottom": 292.0,
+          "top": 172.0,
+          "x0": 72.0,
+          "x1": 432.0
+        },
+        "height": 792,
+        "object_counts": {
+          "annots": 0,
+          "chars": 52,
+          "curves": 0,
+          "hyperlinks": 0,
+          "images": 0,
+          "lines": 9,
+          "rects": 0
+        },
+        "page_number": 1,
+        "rotation": 0,
+        "table_count": 1,
+        "text": "Name Age City\nAlice 31 Oakland\nBob 27 Berkeley\nCara 29 San Jose",
+        "width": 612,
+        "word_texts": [
+          "Name",
+          "Age",
+          "City",
+          "Alice",
+          "31",
+          "Oakland",
+          "Bob",
+          "27",
+          "Berkeley",
+          "Cara",
+          "29",
+          "San",
+          "Jose"
+        ]
+      }
+    ]
+  },
+  "table_text_only": {
+    "file": "table_text_only.pdf",
+    "page_count": 1,
+    "pages": [
+      {
+        "default_table": null,
+        "height": 792,
+        "object_counts": {
+          "annots": 0,
+          "chars": 42,
+          "curves": 0,
+          "hyperlinks": 0,
+          "images": 0,
+          "lines": 0,
+          "rects": 0
+        },
+        "page_number": 1,
+        "rotation": 0,
+        "text": "Item Qty Price\nApples 10 $5\nBananas 4 $2\nCarrots 7 $3",
+        "text_table": [
+          [
+            "Item",
+            "Qty",
+            "Price"
+          ],
+          [
+            "",
+            "",
+            ""
+          ],
+          [
+            "Apples",
+            "10",
+            "$5"
+          ],
+          [
+            "",
+            "",
+            ""
+          ],
+          [
+            "Bananas",
+            "4",
+            "$2"
+          ],
+          [
+            "",
+            "",
+            ""
+          ],
+          [
+            "Carrots",
+            "7",
+            "$3"
+          ]
+        ],
+        "text_table_count": 1,
+        "width": 612,
+        "word_texts": [
+          "Item",
+          "Qty",
+          "Price",
+          "Apples",
+          "10",
+          "$5",
+          "Bananas",
+          "4",
+          "$2",
+          "Carrots",
+          "7",
+          "$3"
+        ]
+      }
+    ]
+  }
+}

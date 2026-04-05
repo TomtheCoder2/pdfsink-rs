@@ -1,0 +1,50 @@
+{
+  "native_rust": true,
+  "compiled_in_environment": false,
+  "reason_not_compiled": "Rust toolchain unavailable in assembly environment",
+  "fixture_count": 7,
+  "fixtures": {
+    "crop_regions": {
+      "file": "crop_regions.pdf",
+      "page_count": 1
+    },
+    "multipage": {
+      "file": "multipage.pdf",
+      "page_count": 2
+    },
+    "objects_showcase": {
+      "file": "objects_showcase.pdf",
+      "page_count": 1
+    },
+    "rotated_and_duplicates": {
+      "file": "rotated_and_duplicates.pdf",
+      "page_count": 1
+    },
+    "simple_text": {
+      "file": "simple_text.pdf",
+      "page_count": 1
+    },
+    "table_lines": {
+      "file": "table_lines.pdf",
+      "page_count": 1
+    },
+    "table_text_only": {
+      "file": "table_text_only.pdf",
+      "page_count": 1
+    }
+  },
+  "reference_source": "pdfplumber-generated goldens",
+  "checks_covered": [
+    "page count and page geometry",
+    "text extraction",
+    "word extraction order",
+    "object counts",
+    "search output",
+    "crop and outside_bbox behavior",
+    "line-based table extraction",
+    "text-strategy table extraction",
+    "image/path/hyperlink object summaries",
+    "character deduplication",
+    "multi-page extraction"
+  ]
+}

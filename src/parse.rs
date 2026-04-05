@@ -1,12 +1,13 @@
 use crate::error::{Error, Result};
 use crate::geometry::bbox_from_points;
 use crate::types::{
-    Annotation, BBox, Char, Curve, Hyperlink, ImageObject, Line, Page, PathCommand, Point, RectObject,
+    Annotation, BBox, Char, Curve, Hyperlink, ImageObject, JsonMap, Line, Page, PathCommand, Point, RectObject,
 };
 use euclid::{Point2D, Transform2D};
 use lopdf::content::Content;
 use lopdf::{Dictionary, Document, Object, ObjectId, Stream};
 use pdf_extract::{MediaBox, OutputDev, Path, PathOp, Space, Transform};
+use serde_json::Value;
 
 #[derive(Debug, Clone, Copy)]
 struct PageGeometry {
@@ -118,6 +119,8 @@ impl CollectorOutput {
         let size = (vertical_dx.powi(2) + vertical_dy.powi(2)).sqrt();
 
         self.chars.push(Char {
+            object_type: "char".to_string(),
+            page_number: self.page_number,
             text: text.to_string(),
             x0: bbox.x0,
             top: bbox.top,
@@ -133,6 +136,11 @@ impl CollectorOutput {
             upright,
             fontname: "unknown".to_string(),
             matrix: [trm.m11, trm.m12, trm.m21, trm.m22, trm.m31, trm.m32],
+            mcid: None,
+            tag: None,
+            ncs: None,
+            stroking_color: None,
+            non_stroking_color: None,
         });
     }
 
@@ -141,7 +149,6 @@ impl CollectorOutput {
             return;
         }
 
-        // Handle single rect
         if path.ops.len() == 1 {
             if let PathOp::Rect(x, y, w, h) = &path.ops[0] {
                 let corners = [
@@ -154,6 +161,8 @@ impl CollectorOutput {
                     return;
                 };
                 self.rects.push(RectObject {
+                    object_type: "rect".to_string(),
+                    page_number: self.page_number,
                     x0: bbox.x0,
                     top: bbox.top,
                     x1: bbox.x1,
@@ -178,7 +187,6 @@ impl CollectorOutput {
             }
         }
 
-        // Handle simple straight line (MoveTo+LineTo or MoveTo+LineTo+Close)
         if let Some((start, end)) = straight_line_from_path(path) {
             let p0 = self.map_transformed_point(ctm, start.0, start.1);
             let p1 = self.map_transformed_point(ctm, end.0, end.1);
@@ -186,6 +194,8 @@ impl CollectorOutput {
                 return;
             };
             self.lines.push(Line {
+                object_type: "line".to_string(),
+                page_number: self.page_number,
                 x0: bbox.x0,
                 top: bbox.top,
                 x1: bbox.x1,
@@ -203,73 +213,6 @@ impl CollectorOutput {
             return;
         }
 
-        // Complex path: split into subpaths at MoveTo boundaries.
-        // Subpaths with exactly one LineTo (2-point paths) become lines.
-        // The overall path is always emitted as a curve.
-        //
-        // First pass: collect subpaths to find 2-point line segments
-        {
-            let mut sub_start: Option<(f64, f64)> = None;
-            let mut sub_segments: Vec<(f64, f64, f64, f64)> = Vec::new();
-            let mut sub_has_curve = false;
-
-            let flush_subpath =
-                |_sub_start: &Option<(f64, f64)>,
-                 sub_segments: &[(f64, f64, f64, f64)],
-                 sub_has_curve: bool,
-                 collector: &mut Self| {
-                    // Only emit a line if this subpath is a single straight segment
-                    if !sub_has_curve && sub_segments.len() == 1 {
-                        let (x0, y0, x1, y1) = sub_segments[0];
-                        collector.push_line_segment(ctm, x0, y0, x1, y1, stroke, fill);
-                    }
-                    // Also check: MoveTo + Close with no LineTo is degenerate, skip
-                    // MoveTo + multiple LineTo = polygon, keep as part of curve only
-                };
-
-            for op in &path.ops {
-                match op {
-                    PathOp::MoveTo(x, y) => {
-                        flush_subpath(&sub_start, &sub_segments, sub_has_curve, self);
-                        sub_start = Some((*x, *y));
-                        sub_segments.clear();
-                        sub_has_curve = false;
-                    }
-                    PathOp::LineTo(x, y) => {
-                        let prev = sub_segments
-                            .last()
-                            .map(|(_, _, ex, ey)| (*ex, *ey))
-                            .or(sub_start)
-                            .unwrap_or((0.0, 0.0));
-                        sub_segments.push((prev.0, prev.1, *x, *y));
-                    }
-                    PathOp::CurveTo(..) => {
-                        sub_has_curve = true;
-                    }
-                    PathOp::Close => {
-                        // Close back to subpath start
-                        if let Some((sx, sy)) = sub_start {
-                            let prev = sub_segments
-                                .last()
-                                .map(|(_, _, ex, ey)| (*ex, *ey))
-                                .or(sub_start)
-                                .unwrap_or((0.0, 0.0));
-                            if (prev.0 - sx).abs() > 1e-6 || (prev.1 - sy).abs() > 1e-6 {
-                                sub_segments.push((prev.0, prev.1, sx, sy));
-                            }
-                        }
-                        flush_subpath(&sub_start, &sub_segments, sub_has_curve, self);
-                        sub_segments.clear();
-                        sub_has_curve = false;
-                        // sub_start stays the same for potential next ops
-                    }
-                    PathOp::Rect(..) => {}
-                }
-            }
-            flush_subpath(&sub_start, &sub_segments, sub_has_curve, self);
-        }
-
-        // Second pass: build the curve object
         let mut pts: Vec<Point> = Vec::new();
         let mut commands = Vec::new();
         let mut current: Option<(f64, f64)> = None;
@@ -313,6 +256,8 @@ impl CollectorOutput {
         };
 
         self.curves.push(Curve {
+            object_type: "curve".to_string(),
+            page_number: self.page_number,
             x0: bbox.x0,
             top: bbox.top,
             x1: bbox.x1,
@@ -324,29 +269,6 @@ impl CollectorOutput {
             height: bbox.height(),
             pts,
             path: commands,
-            stroke,
-            fill,
-            linewidth: 0.0,
-        });
-    }
-
-    fn push_line_segment(&mut self, ctm: &Transform, x0: f64, y0: f64, x1: f64, y1: f64, stroke: bool, fill: bool) {
-        let p0 = self.map_transformed_point(ctm, x0, y0);
-        let p1 = self.map_transformed_point(ctm, x1, y1);
-        let Some(bbox) = bbox_from_points(&[p0, p1]) else {
-            return;
-        };
-        self.lines.push(Line {
-            x0: bbox.x0,
-            top: bbox.top,
-            x1: bbox.x1,
-            bottom: bbox.bottom,
-            y0: self.geom.height - bbox.bottom,
-            y1: self.geom.height - bbox.top,
-            doctop: self.geom.doctop(bbox.top),
-            width: bbox.width(),
-            height: bbox.height(),
-            pts: vec![p0, p1],
             stroke,
             fill,
             linewidth: 0.0,
@@ -453,6 +375,8 @@ pub fn open_pdf<P: AsRef<std::path::Path>>(path: P) -> Result<crate::types::PdfD
     Ok(crate::types::PdfDocument {
         path: pathbuf,
         pages: parsed_pages,
+        metadata: extract_metadata(&doc),
+        structure_tree: None,
     })
 }
 
@@ -466,6 +390,20 @@ fn parse_page(doc: &Document, page_number: usize, page_id: ObjectId, doctop_offs
         .ok_or_else(|| Error::Message(format!("page {page_number} missing MediaBox")))?;
     let media_box = obj_to_box(&media_box_obj)?;
     let geom = PageGeometry::from_media_box(media_box, rotation, doctop_offset);
+    let mediabox = raw_box_to_bbox(media_box, geom).unwrap_or_else(|| geom.page_bbox());
+    let cropbox = get_inherited_object(doc, page_id, b"CropBox")?
+        .map(|obj| obj_to_box(&obj).and_then(|raw| raw_box_to_bbox(raw, geom).ok_or_else(|| Error::Message("invalid CropBox".to_string()))))
+        .transpose()?
+        .unwrap_or(mediabox);
+    let trimbox = get_inherited_object(doc, page_id, b"TrimBox")?
+        .map(|obj| obj_to_box(&obj).and_then(|raw| raw_box_to_bbox(raw, geom).ok_or_else(|| Error::Message("invalid TrimBox".to_string()))))
+        .transpose()?;
+    let bleedbox = get_inherited_object(doc, page_id, b"BleedBox")?
+        .map(|obj| obj_to_box(&obj).and_then(|raw| raw_box_to_bbox(raw, geom).ok_or_else(|| Error::Message("invalid BleedBox".to_string()))))
+        .transpose()?;
+    let artbox = get_inherited_object(doc, page_id, b"ArtBox")?
+        .map(|obj| obj_to_box(&obj).and_then(|raw| raw_box_to_bbox(raw, geom).ok_or_else(|| Error::Message("invalid ArtBox".to_string()))))
+        .transpose()?;
 
     let mut collector = CollectorOutput::new(geom, page_number);
     // pdf-extract may panic on malformed content streams; catch and convert to error
@@ -490,7 +428,7 @@ fn parse_page(doc: &Document, page_number: usize, page_id: ObjectId, doctop_offs
         .unwrap_or_else(Dictionary::new);
 
     let images = collect_images(doc, &resources, page_id, geom, page_number)?;
-    let (annots, hyperlinks) = collect_annotations(doc, &page_dict, geom)?;
+    let (annots, hyperlinks) = collect_annotations(doc, &page_dict, geom, page_number)?;
 
     Ok(Page {
         page_number,
@@ -498,7 +436,13 @@ fn parse_page(doc: &Document, page_number: usize, page_id: ObjectId, doctop_offs
         width: geom.width,
         height: geom.height,
         bbox: geom.page_bbox(),
+        mediabox,
+        cropbox,
+        trimbox,
+        bleedbox,
+        artbox,
         doctop_offset,
+        is_original: true,
         chars,
         lines,
         rects,
@@ -506,6 +450,7 @@ fn parse_page(doc: &Document, page_number: usize, page_id: ObjectId, doctop_offs
         images,
         annots,
         hyperlinks,
+        structure_tree: None,
     })
 }
 
@@ -514,7 +459,7 @@ fn collect_images(
     resources: &Dictionary,
     page_id: ObjectId,
     geom: PageGeometry,
-    _page_number: usize,
+    page_number: usize,
 ) -> Result<Vec<ImageObject>> {
     let content = doc.get_page_content(page_id)?;
     let mut walker = ImageWalker {
@@ -523,7 +468,11 @@ fn collect_images(
         images: Vec::new(),
     };
     walker.walk_stream(content, resources, Transform2D::<f64, Space, Space>::identity())?;
-    Ok(walker.images)
+    let mut images = walker.images;
+    for image in &mut images {
+        image.page_number = page_number;
+    }
+    Ok(images)
 }
 
 struct ImageWalker<'a> {
@@ -634,6 +583,8 @@ impl<'a> ImageWalker<'a> {
         let colorspace = dict_get(&stream.dict, b"ColorSpace").map(color_space_name);
 
         self.images.push(ImageObject {
+            object_type: "image".to_string(),
+            page_number: 0,
             x0: bbox.x0,
             top: bbox.top,
             x1: bbox.x1,
@@ -647,6 +598,9 @@ impl<'a> ImageWalker<'a> {
             srcsize: (width, height),
             bits,
             colorspace,
+            imagemask: dict_get(&stream.dict, b"ImageMask").and_then(obj_to_bool),
+            mcid: None,
+            tag: None,
         });
     }
 
@@ -656,7 +610,7 @@ impl<'a> ImageWalker<'a> {
     }
 }
 
-fn collect_annotations(doc: &Document, page_dict: &Dictionary, geom: PageGeometry) -> Result<(Vec<Annotation>, Vec<Hyperlink>)> {
+fn collect_annotations(doc: &Document, page_dict: &Dictionary, geom: PageGeometry, page_number: usize) -> Result<(Vec<Annotation>, Vec<Hyperlink>)> {
     let mut annots = Vec::new();
     let mut hyperlinks = Vec::new();
 
@@ -701,6 +655,8 @@ fn collect_annotations(doc: &Document, page_dict: &Dictionary, geom: PageGeometr
         let contents = dict_get(&dict, b"Contents").and_then(decode_pdf_string);
 
         let annot = Annotation {
+            object_type: "annot".to_string(),
+            page_number,
             x0: bbox.x0,
             top: bbox.top,
             x1: bbox.x1,
@@ -718,6 +674,8 @@ fn collect_annotations(doc: &Document, page_dict: &Dictionary, geom: PageGeometr
 
         if let Some(uri) = action_uri {
             hyperlinks.push(Hyperlink {
+                object_type: "hyperlink".to_string(),
+                page_number,
                 x0: annot.x0,
                 top: annot.top,
                 x1: annot.x1,
@@ -793,10 +751,46 @@ fn obj_to_box(obj: &Object) -> Result<[f64; 4]> {
     }
 }
 
+fn raw_box_to_bbox(raw_box: [f64; 4], geom: PageGeometry) -> Option<BBox> {
+    let p0 = geom.map_raw_point(raw_box[0], raw_box[1]);
+    let p1 = geom.map_raw_point(raw_box[2], raw_box[3]);
+    bbox_from_points(&[p0, p1])
+}
+
+fn extract_metadata(doc: &Document) -> JsonMap {
+    let mut metadata = JsonMap::new();
+    let Some(info_obj) = doc.trailer.get(b"Info").ok() else {
+        return metadata;
+    };
+    let Ok(info_dict) = object_to_dict(doc, info_obj) else {
+        return metadata;
+    };
+    for (key, value) in info_dict.iter() {
+        let key = String::from_utf8_lossy(key).into_owned();
+        let value = match value {
+            Object::String(bytes, _) => decode_bytes(bytes).map(Value::String).unwrap_or(Value::Null),
+            Object::Name(bytes) => Value::String(String::from_utf8_lossy(bytes).into_owned()),
+            Object::Integer(v) => Value::from(*v),
+            Object::Real(v) => Value::from(*v as f64),
+            Object::Boolean(v) => Value::from(*v),
+            other => Value::String(format!("{:?}", other)),
+        };
+        metadata.insert(key, value);
+    }
+    metadata
+}
+
 fn obj_to_f64(obj: &Object) -> Option<f64> {
     match obj {
         Object::Integer(value) => Some(*value as f64),
         Object::Real(value) => Some(*value as f64),
+        _ => None,
+    }
+}
+
+fn obj_to_bool(obj: &Object) -> Option<bool> {
+    match obj {
+        Object::Boolean(value) => Some(*value),
         _ => None,
     }
 }

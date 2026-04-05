@@ -215,6 +215,113 @@ fn benchmark_pdf(path: &Path) -> Value {
         None
     };
 
+    // 10. Layout analysis (first page)
+    let layout_result = if num_pages > 0 {
+        let page = &doc.pages()[0];
+        let (tl_time, tl) = timed(|| page.textlinehorizontals(), TIMING_ITERS);
+        let (tb_time, tb) = timed(|| page.textboxhorizontals(), TIMING_ITERS);
+        let (edges_time, edges) = timed(|| page.edges(), TIMING_ITERS);
+        Some(json!({
+            "textlinehorizontals_time_s": tl_time,
+            "textlinehorizontal_count": tl.len(),
+            "textboxhorizontals_time_s": tb_time,
+            "textboxhorizontal_count": tb.len(),
+            "edges_time_s": edges_time,
+            "edge_count": edges.len(),
+            "horizontal_edges": page.horizontal_edges().len(),
+            "vertical_edges": page.vertical_edges().len(),
+            "rect_edges": page.rect_edges().len(),
+            "curve_edges": page.curve_edges().len(),
+        }))
+    } else {
+        None
+    };
+
+    // 11. JSON serialization (first page)
+    let json_result = if num_pages > 0 {
+        let page = &doc.pages()[0];
+        let (t, result) = timed(
+            || page.to_json::<Vec<u8>>(None, None, None, None, Some(3), Some(2)),
+            TIMING_ITERS,
+        );
+        let len = result.ok().flatten().map(|s| s.len()).unwrap_or(0);
+        Some(json!({
+            "time_s": t,
+            "output_bytes": len,
+        }))
+    } else {
+        None
+    };
+
+    // 12. CSV serialization (first page)
+    let csv_result = if num_pages > 0 {
+        let page = &doc.pages()[0];
+        let (t, result) = timed(
+            || page.to_csv::<Vec<u8>>(None, None, Some(3), None, None),
+            TIMING_ITERS,
+        );
+        let len = result.ok().flatten().map(|s| s.len()).unwrap_or(0);
+        Some(json!({
+            "time_s": t,
+            "output_bytes": len,
+        }))
+    } else {
+        None
+    };
+
+    // 13. Image rendering (first page)
+    let render_result = if num_pages > 0 {
+        let page = &doc.pages()[0];
+        let (t, img) = timed(
+            || page.to_image(Some(72.0), None, None, false, false),
+            TIMING_ITERS,
+        );
+        match img {
+            Ok(img) => Some(json!({
+                "time_s": t,
+                "width_px": img.width(),
+                "height_px": img.height(),
+            })),
+            Err(e) => Some(json!({
+                "time_s": t,
+                "error": format!("{}", e),
+            })),
+        }
+    } else {
+        None
+    };
+
+    // 14. Document-level aggregates
+    let (agg_time, _) = timed(
+        || {
+            let _chars = doc.chars().len();
+            let _lines = doc.lines().len();
+            let _rects = doc.rects().len();
+            let _curves = doc.curves().len();
+            let _images = doc.images().len();
+            let _annots = doc.annots().len();
+            let _hyperlinks = doc.hyperlinks().len();
+        },
+        TIMING_ITERS,
+    );
+
+    // 15. Metadata
+    let metadata_keys: Vec<String> = doc.metadata.keys().cloned().collect();
+
+    // 16. Page box info (first page)
+    let page_boxes = if num_pages > 0 {
+        let p = &doc.pages()[0];
+        Some(json!({
+            "mediabox": [round3(p.mediabox.x0), round3(p.mediabox.top), round3(p.mediabox.x1), round3(p.mediabox.bottom)],
+            "cropbox": [round3(p.cropbox.x0), round3(p.cropbox.top), round3(p.cropbox.x1), round3(p.cropbox.bottom)],
+            "has_trimbox": p.trimbox.is_some(),
+            "has_bleedbox": p.bleedbox.is_some(),
+            "has_artbox": p.artbox.is_some(),
+        }))
+    } else {
+        None
+    };
+
     let mut result = json!({
         "file": filename,
         "size_bytes": size_bytes,
@@ -228,6 +335,8 @@ fn benchmark_pdf(path: &Path) -> Value {
         "table_extraction_time_s": total_table_time,
         "tables_found": tables_found,
         "table_results": &table_results[..table_results.len().min(20)],
+        "aggregate_objects_time_s": agg_time,
+        "metadata_keys": metadata_keys,
     });
 
     if let Some(c) = page1_chars {
@@ -241,6 +350,21 @@ fn benchmark_pdf(path: &Path) -> Value {
     }
     if let Some(s) = search_result {
         result["search"] = s;
+    }
+    if let Some(l) = layout_result {
+        result["layout"] = l;
+    }
+    if let Some(j) = json_result {
+        result["json_serialization"] = j;
+    }
+    if let Some(c) = csv_result {
+        result["csv_serialization"] = c;
+    }
+    if let Some(r) = render_result {
+        result["render"] = r;
+    }
+    if let Some(b) = page_boxes {
+        result["page_boxes"] = b;
     }
 
     result
@@ -301,7 +425,7 @@ fn main() {
 
     let output = json!({
         "tool": "pdfsink-rs",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "pdfs": all_pdfs,
     });
 

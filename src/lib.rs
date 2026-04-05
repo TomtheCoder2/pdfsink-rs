@@ -1,11 +1,15 @@
 mod clustering;
+mod container_api;
+mod display;
 mod error;
 mod geometry;
+mod layout;
 mod parse;
 mod table;
 mod text;
 mod types;
 
+pub use display::{HasBBox, HasCenter, HasLineSegments, PageImage, RenderOptions, RgbaColor};
 pub use error::{Error, Result};
 pub use parse::open_pdf;
 pub use table::{ExplicitLine, Table, TableFinder, TableSettings, TableStrategy};
@@ -14,10 +18,12 @@ pub use text::{
     extract_words, DedupeOptions, SearchOptions, TextMap, TextOptions, WordExtractor, WordMap,
 };
 pub use types::{
-    Annotation, BBox, Char, Curve, Direction, Edge, Hyperlink, ImageObject, Line, ObjectCounts,
-    Orientation, Page, PageObjectRef, PathCommand, PdfDocument, Point, RectObject, SearchMatch,
-    TextLine, Word,
+    Annotation, BBox, Char, Curve, Direction, Edge, Hyperlink, ImageObject, JsonMap, LayoutObject,
+    Line, ObjectCounts, Orientation, Page, PageLayout, PageObjectRef, PathCommand, PdfDocument,
+    Point, RectObject, SearchMatch, StructureElement, TextLine, Word,
 };
+
+pub type PDF = PdfDocument;
 
 use geometry::{crop_objects, outside_objects, test_proposed_bbox, within_objects};
 
@@ -156,12 +162,14 @@ impl Page {
             .filter(|item| predicate(PageObjectRef::Hyperlink(item)))
             .cloned()
             .collect();
+        page.is_original = false;
         page
     }
 
     pub fn dedupe_chars(&self, options: &DedupeOptions) -> Self {
         let mut page = self.clone();
         page.chars = dedupe_chars(&self.chars, options);
+        page.is_original = false;
         page
     }
 
@@ -320,11 +328,12 @@ impl Page {
             CropMode::Outside => self.bbox,
             CropMode::Crop | CropMode::Within => proposed,
         };
+        page.is_original = false;
 
         Ok(page)
     }
 
-    fn default_text_options(&self) -> TextOptions {
+    pub(crate) fn default_text_options(&self) -> TextOptions {
         let mut options = TextOptions::default();
         options.layout_bbox = Some(self.bbox);
         options.layout_width = Some(self.width);

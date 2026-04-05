@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
+
+pub type JsonMap = BTreeMap<String, Value>;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct BBox {
@@ -59,6 +63,10 @@ impl BBox {
 
     pub fn as_tuple(self) -> (f64, f64, f64, f64) {
         (self.x0, self.top, self.x1, self.bottom)
+    }
+
+    pub fn center(self) -> Point {
+        Point::new((self.x0 + self.x1) / 2.0, (self.top + self.bottom) / 2.0)
     }
 }
 
@@ -140,6 +148,8 @@ impl Orientation {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Char {
+    pub object_type: String,
+    pub page_number: usize,
     pub text: String,
     pub x0: f64,
     pub top: f64,
@@ -155,6 +165,16 @@ pub struct Char {
     pub upright: bool,
     pub fontname: String,
     pub matrix: [f64; 6],
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcid: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ncs: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stroking_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub non_stroking_color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -175,6 +195,8 @@ pub struct Word {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Line {
+    pub object_type: String,
+    pub page_number: usize,
     pub x0: f64,
     pub top: f64,
     pub x1: f64,
@@ -201,6 +223,8 @@ pub enum PathCommand {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RectObject {
+    pub object_type: String,
+    pub page_number: usize,
     pub x0: f64,
     pub top: f64,
     pub x1: f64,
@@ -219,6 +243,8 @@ pub struct RectObject {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Curve {
+    pub object_type: String,
+    pub page_number: usize,
     pub x0: f64,
     pub top: f64,
     pub x1: f64,
@@ -237,6 +263,8 @@ pub struct Curve {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ImageObject {
+    pub object_type: String,
+    pub page_number: usize,
     pub x0: f64,
     pub top: f64,
     pub x1: f64,
@@ -252,10 +280,18 @@ pub struct ImageObject {
     pub bits: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub colorspace: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub imagemask: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcid: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Annotation {
+    pub object_type: String,
+    pub page_number: usize,
     pub x0: f64,
     pub top: f64,
     pub x1: f64,
@@ -276,6 +312,8 @@ pub struct Annotation {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Hyperlink {
+    pub object_type: String,
+    pub page_number: usize,
     pub x0: f64,
     pub top: f64,
     pub x1: f64,
@@ -336,13 +374,70 @@ pub struct TextLine {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LayoutObject {
+    pub object_type: String,
+    pub page_number: usize,
+    pub x0: f64,
+    pub top: f64,
+    pub x1: f64,
+    pub bottom: f64,
+    pub width: f64,
+    pub height: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direction: Option<Direction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upright: Option<bool>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<LayoutObject>,
+}
+
+impl LayoutObject {
+    pub fn bbox(&self) -> BBox {
+        BBox::new(self.x0, self.top, self.x1, self.bottom)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PageLayout {
+    pub page_number: usize,
+    pub bbox: BBox,
+    pub objects: Vec<LayoutObject>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct StructureElement {
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_number: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcid: Option<i64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<StructureElement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Page {
     pub page_number: usize,
     pub rotation: i32,
     pub width: f64,
     pub height: f64,
     pub bbox: BBox,
+    pub mediabox: BBox,
+    pub cropbox: BBox,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trimbox: Option<BBox>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bleedbox: Option<BBox>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artbox: Option<BBox>,
     pub doctop_offset: f64,
+    pub is_original: bool,
     pub chars: Vec<Char>,
     pub lines: Vec<Line>,
     pub rects: Vec<RectObject>,
@@ -350,12 +445,18 @@ pub struct Page {
     pub images: Vec<ImageObject>,
     pub annots: Vec<Annotation>,
     pub hyperlinks: Vec<Hyperlink>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub structure_tree: Option<StructureElement>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PdfDocument {
     pub path: PathBuf,
     pub pages: Vec<Page>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub metadata: JsonMap,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub structure_tree: Option<StructureElement>,
 }
 
 pub enum PageObjectRef<'a> {
@@ -424,6 +525,23 @@ impl Bounded for Word {
 }
 
 impl Bounded for Edge {
+    fn bbox(&self) -> BBox {
+        BBox::new(self.x0, self.top, self.x1, self.bottom)
+    }
+
+    fn with_bbox(&self, bbox: BBox, _page_height: f64) -> Self {
+        let mut copy = self.clone();
+        copy.x0 = bbox.x0;
+        copy.top = bbox.top;
+        copy.x1 = bbox.x1;
+        copy.bottom = bbox.bottom;
+        copy.width = bbox.width();
+        copy.height = bbox.height();
+        copy
+    }
+}
+
+impl Bounded for LayoutObject {
     fn bbox(&self) -> BBox {
         BBox::new(self.x0, self.top, self.x1, self.bottom)
     }

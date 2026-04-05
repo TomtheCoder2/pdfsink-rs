@@ -19,6 +19,12 @@ pub enum Error {
     #[error("json error: {0}")]
     Json(#[from] serde_json::Error),
 
+    #[error("csv error: {0}")]
+    Csv(#[from] csv::Error),
+
+    #[error("image error: {0}")]
+    Image(#[from] image::ImageError),
+
     #[error("invalid page number: {page_number}")]
     InvalidPage { page_number: usize },
 

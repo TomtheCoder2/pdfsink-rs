@@ -1,3 +1,4 @@
+use image::ImageFormat;
 use pdfsink_rs::{
     PdfDocument, Result, SearchOptions, TableSettings, TableStrategy, TextOptions,
 };
@@ -58,16 +59,20 @@ fn run() -> Result<()> {
         }
         "objects" => {
             let page = resolve_page(&pdf, args.next())?;
-            let payload = serde_json::json!({
-                "chars": page.chars,
-                "lines": page.lines,
-                "rects": page.rects,
-                "curves": page.curves,
-                "images": page.images,
-                "annots": page.annots,
-                "hyperlinks": page.hyperlinks,
-            });
+            let payload = page.to_dict(None);
             println!("{}", serde_json::to_string_pretty(&payload)?);
+        }
+        "json" => {
+            let page = resolve_page(&pdf, args.next())?;
+            let rendered = page.to_json::<Vec<u8>>(None, None, None, None, None, Some(2))?
+                .unwrap_or_default();
+            println!("{}", rendered);
+        }
+        "csv" => {
+            let page = resolve_page(&pdf, args.next())?;
+            let rendered = page.to_csv::<Vec<u8>>(None, None, None, None, None)?
+                .unwrap_or_default();
+            println!("{}", rendered);
         }
         "links" => {
             let page = resolve_page(&pdf, args.next())?;
@@ -90,6 +95,16 @@ fn run() -> Result<()> {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("page.svg"));
             fs::write(&output, page.to_debug_svg())?;
+            eprintln!("wrote {}", output.display());
+        }
+        "render" => {
+            let page = resolve_page(&pdf, args.next())?;
+            let output = args
+                .next()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("page.png"));
+            let image = page.to_image(Some(150.0), None, None, false, false)?;
+            image.save(&output, Some(ImageFormat::Png), false, 256, 8)?;
             eprintln!("wrote {}", output.display());
         }
         _ => {
@@ -119,9 +134,12 @@ Usage:
   pdfsink-rs words <file.pdf> [page]
   pdfsink-rs search <file.pdf> [page] [pattern]
   pdfsink-rs objects <file.pdf> [page]
+  pdfsink-rs json <file.pdf> [page]
+  pdfsink-rs csv <file.pdf> [page]
   pdfsink-rs links <file.pdf> [page]
   pdfsink-rs table <file.pdf> [page] [lines|lines_strict|text|explicit]
   pdfsink-rs svg <file.pdf> [page] [output.svg]
+  pdfsink-rs render <file.pdf> [page] [output.png]
 "
     );
 }

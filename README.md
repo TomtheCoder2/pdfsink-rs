@@ -32,12 +32,17 @@ Text extraction alone is **~50x faster**. Table extraction is **~250x faster**.
 
 ## Features
 
-- Open a PDF and access pages
+- Open a PDF and access pages with full metadata
 - Inspect page objects (`chars`, `lines`, `rects`, `curves`, `images`, `annots`, `hyperlinks`)
 - Crop / within-bbox / outside-bbox filtering
 - Text extraction, word extraction, line extraction, regex search
 - Table finding and table extraction (lines, lines_strict, text, explicit strategies)
-- CLI for inspection and debugging
+- **Layout analysis** — textlines, textboxes, hierarchical layout tree
+- **Serialization** — JSON (with precision/filtering), CSV, dictionary export
+- **Image rendering** — rasterize pages to PNG/JPEG with drawing primitives
+- **Document metadata** — mediabox, cropbox, trimbox, bleedbox, artbox
+- **Structure tree** — tagged PDF structure element access
+- CLI for inspection, debugging, and export
 
 ## Example
 
@@ -64,6 +69,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // Layout analysis
+    for tl in page.textlinehorizontals() {
+        println!("line: {:?} @ ({}, {})", tl.text, tl.x0, tl.top);
+    }
+
+    // Serialize to JSON with precision control
+    let json = page.to_json::<Vec<u8>>(None, None, None, None, Some(2), Some(2))?;
+    println!("{}", json.unwrap_or_default());
+
+    // Render page to PNG
+    let image = page.to_image(Some(150.0), None, None, false, false)?;
+    image.save("page.png", Some(image::ImageFormat::Png), false, 256, 8)?;
+
     Ok(())
 }
 ```
@@ -72,13 +90,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```text
 pdfsink-rs info <file.pdf>
-pdfsink-rs text <file.pdf> [--page N]
-pdfsink-rs words <file.pdf> [--page N]
-pdfsink-rs search <file.pdf> <pattern> [--page N]
-pdfsink-rs objects <file.pdf> [--page N]
-pdfsink-rs links <file.pdf> [--page N]
-pdfsink-rs table <file.pdf> [--page N] [--strategy lines|lines_strict|text|explicit]
-pdfsink-rs svg <file.pdf> [--page N] [output.svg]
+pdfsink-rs text <file.pdf> [page]
+pdfsink-rs words <file.pdf> [page]
+pdfsink-rs search <file.pdf> [page] [pattern]
+pdfsink-rs objects <file.pdf> [page]
+pdfsink-rs json <file.pdf> [page]
+pdfsink-rs csv <file.pdf> [page]
+pdfsink-rs links <file.pdf> [page]
+pdfsink-rs table <file.pdf> [page] [lines|lines_strict|text|explicit]
+pdfsink-rs svg <file.pdf> [page] [output.svg]
+pdfsink-rs render <file.pdf> [page] [output.png]
 ```
 
 ## Architecture
@@ -88,9 +109,12 @@ Built on `lopdf` for PDF parsing and `pdf-extract` for content stream processing
 | File | Purpose |
 |------|---------|
 | `src/lib.rs` | Public API (PdfDocument, Page methods) |
-| `src/parse.rs` | PDF parsing, page-object extraction |
+| `src/parse.rs` | PDF parsing, page-object extraction, metadata |
 | `src/text.rs` | Text/word extraction, search, layout |
 | `src/table.rs` | Table detection and extraction |
+| `src/layout.rs` | Layout analysis (textlines, textboxes, layout tree) |
+| `src/container_api.rs` | Serialization (JSON, CSV, dict export) |
+| `src/display.rs` | Image rendering, drawing primitives |
 | `src/geometry.rs` | Bbox operations, cropping, filtering |
 | `src/clustering.rs` | Value clustering for layout analysis |
 

@@ -341,18 +341,20 @@ impl TextMap {
     }
 
     pub fn extract_text_lines(&self, strip: bool, return_chars: bool) -> Vec<TextLine> {
-        let text = self.as_string();
+        // Use the base string (1:1 char-to-tuple mapping) for offset tracking.
+        let text: String = self.tuples.iter().map(|(c, _)| *c).collect();
         let mut out = Vec::new();
         let mut offset = 0usize;
         for raw_line in text.split('\n') {
             let line = if strip { raw_line.trim() } else { raw_line };
+            let char_count = raw_line.chars().count();
             if line.is_empty() {
-                offset += raw_line.len() + 1;
+                offset += char_count + 1;
                 continue;
             }
 
             let chars: Vec<Char> = self
-                .slice_chars(offset, offset + raw_line.len())
+                .slice_chars(offset, offset + char_count)
                 .into_iter()
                 .collect();
 
@@ -366,7 +368,7 @@ impl TextMap {
                     chars: if return_chars { Some(chars) } else { None },
                 });
             }
-            offset += raw_line.len() + 1;
+            offset += char_count + 1;
         }
         out
     }
@@ -382,7 +384,10 @@ impl TextMap {
                 .build()?
         };
 
-        let haystack = self.as_string();
+        // Use the base string (1:1 char-to-tuple mapping) so that byte/char
+        // indices produced by the regex correspond directly to tuple positions.
+        // as_string() may reorder lines and add padding, breaking the mapping.
+        let haystack: String = self.tuples.iter().map(|(c, _)| *c).collect();
         let mut out = Vec::new();
 
         for captures in regex.captures_iter(&haystack) {
@@ -429,6 +434,11 @@ impl TextMap {
     }
 
     fn slice_chars(&self, start: usize, end: usize) -> Vec<Char> {
+        let start = start.min(self.tuples.len());
+        let end = end.min(self.tuples.len());
+        if start >= end {
+            return Vec::new();
+        }
         self.tuples[start..end]
             .iter()
             .filter_map(|(_, ch)| ch.clone())

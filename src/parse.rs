@@ -405,21 +405,22 @@ fn parse_page(doc: &Document, page_number: usize, page_id: ObjectId, doctop_offs
         .map(|obj| obj_to_box(&obj).and_then(|raw| raw_box_to_bbox(raw, geom).ok_or_else(|| Error::Message("invalid ArtBox".to_string()))))
         .transpose()?;
 
+    // pdf-extract may panic on malformed content streams; recover with empty content
     let mut collector = CollectorOutput::new(geom, page_number);
-    // pdf-extract may panic on malformed content streams; catch and convert to error
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        pdf_extract::output_doc_page(doc, &mut collector, page_number as u32)
-    }));
-    match result {
-        Ok(Ok(())) => {}
-        Ok(Err(e)) => return Err(e.into()),
-        Err(_) => {
-            return Err(Error::Message(format!(
-                "pdf-extract panicked while parsing page {page_number}"
-            )));
+    let content_ok = {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            pdf_extract::output_doc_page(doc, &mut collector, page_number as u32)
+        }));
+        match result {
+            Ok(Ok(())) => true,
+            Ok(Err(_)) | Err(_) => false,
         }
-    }
-    let (chars, lines, rects, curves) = collector.finish();
+    };
+    let (chars, lines, rects, curves) = if content_ok {
+        collector.finish()
+    } else {
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new())
+    };
 
     let page_dict = page_dict(doc, page_id)?;
     let resources = get_inherited_object(doc, page_id, b"Resources")?
@@ -427,8 +428,9 @@ fn parse_page(doc: &Document, page_number: usize, page_id: ObjectId, doctop_offs
         .transpose()?
         .unwrap_or_else(Dictionary::new);
 
-    let images = collect_images(doc, &resources, page_id, geom, page_number)?;
-    let (annots, hyperlinks) = collect_annotations(doc, &page_dict, geom, page_number)?;
+    let images = collect_images(doc, &resources, page_id, geom, page_number).unwrap_or_default();
+    let (annots, hyperlinks) = collect_annotations(doc, &page_dict, geom, page_number)
+        .unwrap_or_default();
 
     Ok(Page {
         page_number,

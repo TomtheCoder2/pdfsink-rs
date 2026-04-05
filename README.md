@@ -15,9 +15,10 @@ Tested against pdfplumber 0.11.8 on real-world government PDFs.
 | IRS W-9 | 6 | 138 KB | 31 ms | 509 ms | **17x** |
 | UN Charter | 54 | 3.0 MB | 130 ms | 1.95 s | **15x** |
 | Census Table | 1 | 58 KB | 4.0 ms | 40 ms | **10x** |
-| **Total (12 PDFs)** | | | **5.0 s** | **47.5 s** | **9.5x** |
+| EPA Guide | 10 | — | 8 ms | 335 ms | **42x** |
+| **Total (13 PDFs)** | | | **5.0 s** | **48.4 s** | **9.6x** |
 
-Text extraction alone is **~50x faster**. Table extraction is **~250x faster**.
+Text extraction is **~34x faster**. Table extraction is **~253x faster**. Gracefully handles malformed pages that crash other parsers.
 
 ### Accuracy
 
@@ -33,6 +34,7 @@ Text extraction alone is **~50x faster**. Table extraction is **~250x faster**.
 ## Features
 
 - Open a PDF and access pages with full metadata
+- **Resilient parsing** — malformed pages recovered gracefully (geometry preserved, content skipped)
 - Inspect page objects (`chars`, `lines`, `rects`, `curves`, `images`, `annots`, `hyperlinks`)
 - Crop / within-bbox / outside-bbox filtering
 - Text extraction, word extraction, line extraction, regex search
@@ -42,6 +44,7 @@ Text extraction alone is **~50x faster**. Table extraction is **~250x faster**.
 - **Image rendering** — rasterize pages to PNG/JPEG with drawing primitives
 - **Document metadata** — mediabox, cropbox, trimbox, bleedbox, artbox
 - **Structure tree** — tagged PDF structure element access
+- **Document aggregates** — `chars()`, `lines()`, `rects()`, `edges()`, etc. across all pages
 - CLI for inspection, debugging, and export
 
 ## Example

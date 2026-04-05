@@ -214,7 +214,7 @@ impl CollectorOutput {
             let mut sub_has_curve = false;
 
             let flush_subpath =
-                |sub_start: &Option<(f64, f64)>,
+                |_sub_start: &Option<(f64, f64)>,
                  sub_segments: &[(f64, f64, f64, f64)],
                  sub_has_curve: bool,
                  collector: &mut Self| {
@@ -261,7 +261,7 @@ impl CollectorOutput {
                         flush_subpath(&sub_start, &sub_segments, sub_has_curve, self);
                         sub_segments.clear();
                         sub_has_curve = false;
-                        sub_start = sub_start; // keep same start for potential next ops
+                        // sub_start stays the same for potential next ops
                     }
                     PathOp::Rect(..) => {}
                 }

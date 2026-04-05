@@ -2,7 +2,7 @@ use crate::clustering::cluster_items;
 use crate::geometry::{objects_to_bbox, rect_to_edges, snap_edges};
 use crate::text::{extract_text, extract_words, TextOptions};
 use crate::types::{
-    BBox, Char, Edge, Line, Orientation, Page, Point, RectObject, Word,
+    BBox, Char, Edge, Line, Orientation, Page, Word,
 };
 use ordered_float::OrderedFloat;
 use std::collections::{BTreeMap, BTreeSet};

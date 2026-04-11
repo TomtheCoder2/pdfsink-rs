@@ -1,14 +1,16 @@
 [package]
 name = "pdfsink-rs"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
-description = "Native pure-Rust PDF extraction crate inspired by pdfplumber — ~10-50x faster text, word, table, and object extraction from PDFs"
+authors = ["Clark Labs Inc. <https://github.com/clark-labs-inc>"]
+description = "Fast pure-Rust PDF extraction library and CLI — ~10-50x faster than pdfplumber for text, word, table, layout, image, and metadata extraction from PDFs. By Clark Labs Inc."
 license = "MIT"
 repository = "https://github.com/clark-labs-inc/pdfsink-rs"
 homepage = "https://github.com/clark-labs-inc/pdfsink-rs"
+documentation = "https://docs.rs/pdfsink-rs"
 readme = "README.md"
-keywords = ["pdf", "extraction", "pdfplumber", "table", "text"]
-categories = ["parser-implementations", "text-processing"]
+keywords = ["pdf", "pdfplumber", "extraction", "table", "parser"]
+categories = ["parser-implementations", "text-processing", "command-line-utilities"]
 
 [lib]
 name = "pdfsink_rs"

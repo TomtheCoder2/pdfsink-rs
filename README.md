@@ -1,6 +1,33 @@
-# pdfsink-rs
+# pdfsink-rs — Fast Pure-Rust PDF Text, Table & Layout Extraction
 
-A native pure-Rust PDF extraction library inspired by [pdfplumber](https://github.com/jsvine/pdfplumber). Drop-in conceptual replacement — same capabilities, **~10-50x faster**.
+[![Crates.io](https://img.shields.io/crates/v/pdfsink-rs.svg)](https://crates.io/crates/pdfsink-rs)
+[![Docs.rs](https://docs.rs/pdfsink-rs/badge.svg)](https://docs.rs/pdfsink-rs)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org)
+
+**pdfsink-rs** is a fast, native, pure-Rust PDF extraction library and CLI — a drop-in conceptual replacement for Python's [pdfplumber](https://github.com/jsvine/pdfplumber) that runs **~10–50x faster** with zero Python runtime. Use it to parse PDFs, extract text, words, tables, layout, images, and metadata from Rust — with resilient handling of malformed documents.
+
+**Keywords:** rust pdf library · rust pdf parser · pdf text extraction · pdf table extraction · pdfplumber alternative · rust pdf crate · extract text from pdf rust · extract tables from pdf rust · pdf layout analysis · pdf to json
+
+Built and maintained by [Clark Labs Inc.](https://github.com/clark-labs-inc)
+
+## Why pdfsink-rs?
+
+- **Fastest pure-Rust PDF extraction** — 10–50x faster than pdfplumber on real-world PDFs, with no Python interpreter, no native C bindings, no shell-outs.
+- **Drop-in conceptual API** — mirrors pdfplumber's mental model (`chars`, `lines`, `rects`, `words`, `tables`, `extract_text`, `extract_table`, crop/within_bbox), so migrating a pipeline from Python to Rust is mostly renaming method calls.
+- **Resilient** — malformed or damaged pages are recovered gracefully instead of crashing the whole document.
+- **Batteries included** — text, word, line, table, layout, image, annotation, hyperlink, metadata, and tagged-structure extraction in a single crate.
+- **Production-ready output formats** — JSON (with precision and filter control), CSV, and dictionary export for pipelines and LLM ingestion.
+- **Ships a CLI** — `pdfsink-rs` binary for inspecting, debugging, and exporting PDFs from the shell without writing any Rust.
+
+### Use cases
+
+- Data pipelines extracting text and tables from government, financial, legal, and scientific PDFs
+- LLM / RAG document ingestion requiring fast, structured PDF parsing in Rust
+- PDF-to-JSON / PDF-to-CSV conversion at scale
+- Layout-aware document understanding (textlines, textboxes, hierarchical layout trees)
+- Rendering PDF pages to PNG / JPEG for previews or OCR pre-processing
+- Migrating Python pdfplumber codebases to a faster native Rust stack
 
 ## Benchmarks: pdfsink-rs vs pdfplumber
 
@@ -47,7 +74,22 @@ Text extraction is **~34x faster**. Table extraction is **~253x faster**. Gracef
 - **Document aggregates** — `chars()`, `lines()`, `rects()`, `edges()`, etc. across all pages
 - CLI for inspection, debugging, and export
 
-## Example
+## Installation
+
+Add the crate to your `Cargo.toml`:
+
+```bash
+cargo add pdfsink-rs
+```
+
+Or in `Cargo.toml`:
+
+```toml
+[dependencies]
+pdfsink-rs = "0.2"
+```
+
+## Quick Start — Extract Text and Tables from a PDF in Rust
 
 ```rust
 use pdfsink_rs::PdfDocument;
@@ -140,6 +182,27 @@ python bench/bench_pdfplumber.py
 python bench/compare.py
 ```
 
+## FAQ
+
+**Is pdfsink-rs a pure-Rust PDF library?**
+Yes. Zero Python runtime, zero C bindings outside of standard Rust crates. It builds on `lopdf` (PDF object parser) and `pdf-extract` (content stream decoder) — both pure Rust.
+
+**How does pdfsink-rs compare to pdfplumber?**
+Same mental model, much faster. Benchmarked at ~10–50x faster across a 13-PDF real-world corpus, with 99.7% text similarity and exact character/word counts on matched pages.
+
+**Can I extract tables from a PDF in Rust with pdfsink-rs?**
+Yes. `page.extract_table(TableSettings::default())` and `find_tables` implement pdfplumber-style `lines`, `lines_strict`, `text`, and `explicit` strategies.
+
+**Does it render PDFs to images?**
+Yes. `page.to_image()` rasterizes pages to PNG or JPEG at any DPI.
+
+**Does it handle malformed PDFs?**
+Yes. Pages that fail content-stream parsing are reported but don't abort document-level extraction — geometry is preserved and bad content is skipped.
+
 ## License
 
-MIT
+MIT © [Clark Labs Inc.](https://github.com/clark-labs-inc)
+
+---
+
+Built by **Clark Labs Inc.** — high-performance Rust tooling for document AI pipelines. If pdfsink-rs saves you time, a ⭐ on [GitHub](https://github.com/clark-labs-inc/pdfsink-rs) helps others discover it.

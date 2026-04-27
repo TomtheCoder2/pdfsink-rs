@@ -62,6 +62,56 @@ impl Default for TextOptions {
 }
 
 impl TextOptions {
+    pub fn with_tolerances(mut self, x_tolerance: f64, y_tolerance: f64) -> Self {
+        self.x_tolerance = x_tolerance;
+        self.y_tolerance = y_tolerance;
+        self
+    }
+
+    pub fn with_tolerance_ratios(mut self, x_tolerance_ratio: Option<f64>, y_tolerance_ratio: Option<f64>) -> Self {
+        self.x_tolerance_ratio = x_tolerance_ratio;
+        self.y_tolerance_ratio = y_tolerance_ratio;
+        self
+    }
+
+    pub fn with_layout(mut self, layout: bool) -> Self {
+        self.layout = layout;
+        self
+    }
+
+    pub fn with_layout_bbox(mut self, bbox: BBox) -> Self {
+        self.layout_bbox = Some(bbox);
+        self.layout_width = Some(bbox.width());
+        self.layout_height = Some(bbox.height());
+        self
+    }
+
+    pub fn with_directions(mut self, line_dir: Direction, char_dir: Direction) -> Self {
+        self.line_dir = line_dir;
+        self.char_dir = char_dir;
+        self
+    }
+
+    pub fn with_split_at_punctuation(mut self, punctuation: impl Into<String>) -> Self {
+        self.split_at_punctuation = Some(punctuation.into());
+        self
+    }
+
+    pub fn with_keep_blank_chars(mut self, keep_blank_chars: bool) -> Self {
+        self.keep_blank_chars = keep_blank_chars;
+        self
+    }
+
+    pub fn with_text_flow(mut self, use_text_flow: bool) -> Self {
+        self.use_text_flow = use_text_flow;
+        self
+    }
+
+    pub fn with_expand_ligatures(mut self, expand_ligatures: bool) -> Self {
+        self.expand_ligatures = expand_ligatures;
+        self
+    }
+
     pub fn resolved_line_dir_rotated(&self) -> Direction {
         self.line_dir_rotated.unwrap_or(self.char_dir)
     }
@@ -94,6 +144,22 @@ impl Default for DedupeOptions {
     }
 }
 
+impl DedupeOptions {
+    pub fn with_tolerance(mut self, tolerance: f64) -> Self {
+        self.tolerance = tolerance;
+        self
+    }
+
+    pub fn with_extra_attrs<I, S>(mut self, extra_attrs: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.extra_attrs = extra_attrs.into_iter().map(Into::into).collect();
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SearchOptions {
     pub regex: bool,
@@ -115,6 +181,35 @@ impl Default for SearchOptions {
     }
 }
 
+impl SearchOptions {
+    pub fn literal() -> Self {
+        Self {
+            regex: false,
+            ..Self::default()
+        }
+    }
+
+    pub fn case_insensitive(mut self) -> Self {
+        self.case_sensitive = false;
+        self
+    }
+
+    pub fn main_group(mut self, main_group: usize) -> Self {
+        self.main_group = main_group;
+        self
+    }
+
+    pub fn return_groups(mut self, return_groups: bool) -> Self {
+        self.return_groups = return_groups;
+        self
+    }
+
+    pub fn return_chars(mut self, return_chars: bool) -> Self {
+        self.return_chars = return_chars;
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct WordMap {
     pub tuples: Vec<(Word, Vec<Char>)>,
@@ -130,22 +225,7 @@ impl WordMap {
                 char_dir_render: options.resolved_char_dir_render(),
             };
         }
-
-        let expansions = |text: &str| -> String {
-            if !options.expand_ligatures {
-                return text.to_string();
-            }
-            match text {
-                "ﬀ" => "ff".to_string(),
-                "ﬃ" => "ffi".to_string(),
-                "ﬄ" => "ffl".to_string(),
-                "ﬁ" => "fi".to_string(),
-                "ﬂ" => "fl".to_string(),
-                "ﬆ" => "st".to_string(),
-                "ﬅ" => "st".to_string(),
-                _ => text.to_string(),
-            }
-        };
+        tuples.reserve(self.tuples.iter().map(|(word, _)| word.text.chars().count() + 1).sum());
 
         let mut width_chars = options.layout_width_chars.unwrap_or(0);
         if width_chars == 0 {
@@ -248,7 +328,7 @@ impl WordMap {
                 line_len += prepend_spaces.max(0);
 
                 for ch in chars {
-                    let expanded = expansions(&ch.text);
+                    let expanded = expand_ligature_text(&ch.text, options.expand_ligatures);
                     for letter in expanded.chars() {
                         tuples.push((letter, Some(ch.clone())));
                         line_len += 1;
@@ -292,8 +372,20 @@ pub struct TextMap {
 }
 
 impl TextMap {
+    pub fn len(&self) -> usize {
+        self.tuples.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.tuples.is_empty()
+    }
+
+    pub fn base_string(&self) -> String {
+        self.tuples.iter().map(|(c, _)| *c).collect()
+    }
+
     pub fn as_string(&self) -> String {
-        let base: String = self.tuples.iter().map(|(c, _)| *c).collect();
+        let base = self.base_string();
         if self.char_dir_render == Direction::Ltr && self.line_dir_render == Direction::Ttb {
             return base;
         }
@@ -383,11 +475,14 @@ impl TextMap {
                 .case_insensitive(!options.case_sensitive)
                 .build()?
         };
+        Ok(self.search_compiled(&regex, options))
+    }
 
+    pub fn search_compiled(&self, regex: &regex::Regex, options: &SearchOptions) -> Vec<SearchMatch> {
         // Use the base string (1:1 char-to-tuple mapping) so that byte/char
         // indices produced by the regex correspond directly to tuple positions.
         // as_string() may reorder lines and add padding, breaking the mapping.
-        let haystack: String = self.tuples.iter().map(|(c, _)| *c).collect();
+        let haystack = self.base_string();
         let mut out = Vec::new();
 
         for captures in regex.captures_iter(&haystack) {
@@ -410,7 +505,7 @@ impl TextMap {
             };
 
             let groups = if options.return_groups {
-                let mut gs = Vec::new();
+                let mut gs = Vec::with_capacity(captures.len().saturating_sub(1));
                 for idx in 1..captures.len() {
                     gs.push(captures.get(idx).map(|m| m.as_str().to_string()));
                 }
@@ -430,7 +525,7 @@ impl TextMap {
             });
         }
 
-        Ok(out)
+        out
     }
 
     fn slice_chars(&self, start: usize, end: usize) -> Vec<Char> {
@@ -514,22 +609,7 @@ impl WordExtractor {
         Word {
             text: ordered_chars
                 .iter()
-                .map(|ch| {
-                    if self.options.expand_ligatures {
-                        match ch.text.as_str() {
-                            "ﬀ" => "ff",
-                            "ﬃ" => "ffi",
-                            "ﬄ" => "ffl",
-                            "ﬁ" => "fi",
-                            "ﬂ" => "fl",
-                            "ﬆ" => "st",
-                            "ﬅ" => "st",
-                            _ => ch.text.as_str(),
-                        }
-                    } else {
-                        ch.text.as_str()
-                    }
-                })
+                .map(|ch| expand_ligature_text(&ch.text, self.options.expand_ligatures))
                 .collect(),
             x0: bbox.x0,
             top: bbox.top,
@@ -591,19 +671,24 @@ impl WordExtractor {
         let mut words: Vec<Vec<Char>> = Vec::new();
         let punctuation = self.options.split_at_punctuation.clone().unwrap_or_default();
         let mut saw_space = false;
+        let mut force_new_after_punctuation = false;
 
         for ch in ordered_chars.iter().cloned() {
             if !self.options.keep_blank_chars && ch.text.chars().all(|c| c.is_whitespace()) {
                 saw_space = true;
+                force_new_after_punctuation = false;
                 continue;
             }
 
             if !punctuation.is_empty() && ch.text.chars().all(|c| punctuation.contains(c)) {
                 words.push(vec![ch]);
+                saw_space = false;
+                force_new_after_punctuation = true;
                 continue;
             }
 
             let should_start_new = saw_space
+                || force_new_after_punctuation
                 || words
                     .last()
                     .and_then(|word| word.last())
@@ -624,6 +709,7 @@ impl WordExtractor {
                     })
                     .unwrap_or(false);
             saw_space = false;
+            force_new_after_punctuation = false;
 
             if should_start_new {
                 words.push(vec![ch]);
@@ -683,7 +769,11 @@ pub fn extract_text_simple(chars: &[Char], x_tolerance: f64, y_tolerance: f64) -
 }
 
 pub fn collate_line(line_chars: &[Char], tolerance: f64) -> String {
-    let mut line = String::new();
+    collate_line_with_ligatures(line_chars, tolerance, true)
+}
+
+pub fn collate_line_with_ligatures(line_chars: &[Char], tolerance: f64, expand_ligatures: bool) -> String {
+    let mut line = String::with_capacity(line_chars.iter().map(|ch| ch.text.len()).sum::<usize>() + line_chars.len());
     let mut last_x1: Option<f64> = None;
     for ch in line_chars {
         if let Some(prev_x1) = last_x1 {
@@ -691,7 +781,7 @@ pub fn collate_line(line_chars: &[Char], tolerance: f64) -> String {
                 line.push(' ');
             }
         }
-        line.push_str(&ch.text);
+        line.push_str(expand_ligature_text(&ch.text, expand_ligatures));
         last_x1 = Some(ch.x1);
     }
     line
@@ -749,8 +839,20 @@ fn dedupe_cmp(a: &Char, b: &Char, extra_attrs: &[String]) -> std::cmp::Ordering 
 fn extra_attr_cmp(a: &Char, b: &Char, extra_attrs: &[String]) -> std::cmp::Ordering {
     for attr in extra_attrs {
         let ord = match attr.as_str() {
+            "object_type" => a.object_type.cmp(&b.object_type),
+            "page_number" => a.page_number.cmp(&b.page_number),
             "fontname" => a.fontname.cmp(&b.fontname),
             "size" => a.size.total_cmp(&b.size),
+            "adv" => a.adv.total_cmp(&b.adv),
+            "width" => a.width.total_cmp(&b.width),
+            "height" => a.height.total_cmp(&b.height),
+            "upright" => a.upright.cmp(&b.upright),
+            "mcid" => a.mcid.cmp(&b.mcid),
+            "tag" => a.tag.cmp(&b.tag),
+            "ncs" => a.ncs.cmp(&b.ncs),
+            "stroking_color" => a.stroking_color.cmp(&b.stroking_color),
+            "non_stroking_color" => a.non_stroking_color.cmp(&b.non_stroking_color),
+            "matrix" => cmp_f64_slices(&a.matrix, &b.matrix),
             _ => std::cmp::Ordering::Equal,
         };
         if ord != std::cmp::Ordering::Equal {
@@ -765,6 +867,33 @@ fn dedupe_same_key(a: &Char, b: &Char, extra_attrs: &[String]) -> bool {
         return false;
     }
     extra_attr_cmp(a, b, extra_attrs) == std::cmp::Ordering::Equal
+}
+
+fn cmp_f64_slices<const N: usize>(a: &[f64; N], b: &[f64; N]) -> std::cmp::Ordering {
+    for (lhs, rhs) in a.iter().zip(b.iter()) {
+        let ord = lhs.total_cmp(rhs);
+        if ord != std::cmp::Ordering::Equal {
+            return ord;
+        }
+    }
+    std::cmp::Ordering::Equal
+}
+
+fn expand_ligature_text(text: &str, expand_ligatures: bool) -> &str {
+    if !expand_ligatures {
+        return text;
+    }
+
+    match text {
+        "ﬀ" => "ff",
+        "ﬃ" => "ffi",
+        "ﬄ" => "ffl",
+        "ﬁ" => "fi",
+        "ﬂ" => "fl",
+        "ﬆ" => "st",
+        "ﬅ" => "st",
+        _ => text,
+    }
 }
 
 fn byte_to_char_index(s: &str, byte_idx: usize) -> usize {
@@ -872,4 +1001,54 @@ impl TextObject for Word {
     fn top(&self) -> f64 { self.top }
     fn bottom(&self) -> f64 { self.bottom }
     fn height(&self) -> f64 { self.height }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_char(text: &str, x0: f64, x1: f64) -> Char {
+        Char {
+            object_type: "char".to_string(),
+            page_number: 1,
+            text: text.to_string(),
+            x0,
+            top: 0.0,
+            x1,
+            bottom: 10.0,
+            y0: 0.0,
+            y1: 10.0,
+            doctop: 0.0,
+            width: x1 - x0,
+            height: 10.0,
+            size: 10.0,
+            adv: x1 - x0,
+            upright: true,
+            fontname: "Test".to_string(),
+            matrix: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            mcid: None,
+            tag: None,
+            ncs: None,
+            stroking_color: None,
+            non_stroking_color: None,
+        }
+    }
+
+    #[test]
+    fn punctuation_splits_before_and_after_marker() {
+        let chars = vec![test_char("a", 0.0, 5.0), test_char(",", 5.0, 6.0), test_char("b", 6.0, 11.0)];
+        let options = TextOptions::default().with_split_at_punctuation(",");
+        let words = extract_words(&chars, &options, false);
+        let texts = words.into_iter().map(|word| word.text).collect::<Vec<_>>();
+        assert_eq!(texts, vec!["a", ",", "b"]);
+    }
+
+    #[test]
+    fn ligatures_expand_consistently_for_words_and_textmaps() {
+        let chars = vec![test_char("ﬁ", 0.0, 5.0)];
+        let options = TextOptions::default();
+        let words = extract_words(&chars, &options, false);
+        assert_eq!(words[0].text, "fi");
+        assert_eq!(chars_to_textmap(&chars, &options).as_string(), "fi");
+    }
 }

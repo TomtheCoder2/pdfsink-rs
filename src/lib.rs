@@ -4,6 +4,7 @@ mod display;
 mod error;
 mod geometry;
 mod layout;
+mod ops;
 mod parse;
 mod table;
 mod text;
@@ -12,7 +13,7 @@ mod types;
 pub use display::{HasBBox, HasCenter, HasLineSegments, PageImage, RenderOptions, RgbaColor};
 pub use error::{Error, Result};
 pub use parse::open_pdf;
-pub use table::{ExplicitLine, Table, TableFinder, TableSettings, TableStrategy};
+pub use table::{table_rows_to_csv, CellGroup, ExplicitLine, Table, TableFinder, TableSettings, TableStrategy};
 pub use text::{
     chars_to_textmap, dedupe_chars, extract_text, extract_text_lines, extract_text_simple,
     extract_words, DedupeOptions, SearchOptions, TextMap, TextOptions, WordExtractor, WordMap,

@@ -31,30 +31,128 @@ impl BBox {
     }
 
     pub fn is_valid(self) -> bool {
-        self.x0 <= self.x1 && self.top <= self.bottom
+        self.x0 <= self.x1 && self.top <= self.bottom && self.is_finite()
+    }
+
+    pub fn is_finite(self) -> bool {
+        self.x0.is_finite() && self.top.is_finite() && self.x1.is_finite() && self.bottom.is_finite()
+    }
+
+    pub fn is_empty(self) -> bool {
+        self.width() == 0.0 || self.height() == 0.0
+    }
+
+    pub fn normalized(self) -> Self {
+        Self::new(
+            self.x0.min(self.x1),
+            self.top.min(self.bottom),
+            self.x0.max(self.x1),
+            self.top.max(self.bottom),
+        )
     }
 
     pub fn overlaps(self, other: Self) -> bool {
-        !(self.x1 < other.x0 || self.x0 > other.x1 || self.bottom < other.top || self.top > other.bottom)
+        self.overlap(other).is_some()
+    }
+
+    pub fn intersects(self, other: Self) -> bool {
+        self.overlaps(other)
+    }
+
+    pub fn contains_point(self, point: Point) -> bool {
+        let bbox = self.normalized();
+        point.x >= bbox.x0 && point.x <= bbox.x1 && point.y >= bbox.top && point.y <= bbox.bottom
     }
 
     pub fn contains_bbox(self, other: Self) -> bool {
-        self.x0 <= other.x0
-            && self.top <= other.top
-            && self.x1 >= other.x1
-            && self.bottom >= other.bottom
+        let bbox = self.normalized();
+        let other = other.normalized();
+        bbox.x0 <= other.x0
+            && bbox.top <= other.top
+            && bbox.x1 >= other.x1
+            && bbox.bottom >= other.bottom
     }
 
     pub fn overlap(self, other: Self) -> Option<Self> {
-        let x0 = self.x0.max(other.x0);
-        let top = self.top.max(other.top);
-        let x1 = self.x1.min(other.x1);
-        let bottom = self.bottom.min(other.bottom);
+        let bbox = self.normalized();
+        let other = other.normalized();
+        if !bbox.is_finite() || !other.is_finite() {
+            return None;
+        }
+
+        let x0 = bbox.x0.max(other.x0);
+        let top = bbox.top.max(other.top);
+        let x1 = bbox.x1.min(other.x1);
+        let bottom = bbox.bottom.min(other.bottom);
         if x1 >= x0 && bottom >= top && ((x1 - x0) + (bottom - top) > 0.0) {
             Some(Self::new(x0, top, x1, bottom))
         } else {
             None
         }
+    }
+
+    pub fn intersection(self, other: Self) -> Option<Self> {
+        self.overlap(other)
+    }
+
+    pub fn intersection_area(self, other: Self) -> f64 {
+        self.overlap(other)
+            .map(|bbox| bbox.width().max(0.0) * bbox.height().max(0.0))
+            .unwrap_or(0.0)
+    }
+
+    pub fn overlap_ratio(self, other: Self) -> f64 {
+        let area = self.normalized().area();
+        if area <= 0.0 {
+            0.0
+        } else {
+            self.intersection_area(other) / area
+        }
+    }
+
+    pub fn intersection_over_union(self, other: Self) -> f64 {
+        let a = self.normalized().area().max(0.0);
+        let b = other.normalized().area().max(0.0);
+        let intersection = self.intersection_area(other);
+        let union = a + b - intersection;
+        if union <= 0.0 {
+            0.0
+        } else {
+            intersection / union
+        }
+    }
+
+    pub fn union(self, other: Self) -> Self {
+        let bbox = self.normalized();
+        let other = other.normalized();
+        Self::new(
+            bbox.x0.min(other.x0),
+            bbox.top.min(other.top),
+            bbox.x1.max(other.x1),
+            bbox.bottom.max(other.bottom),
+        )
+    }
+
+    pub fn clamp(self, bounds: Self) -> Option<Self> {
+        self.overlap(bounds)
+    }
+
+    pub fn expand(self, dx: f64, dy: f64) -> Self {
+        Self::new(self.x0 - dx, self.top - dy, self.x1 + dx, self.bottom + dy)
+    }
+
+    pub fn pad(self, amount: f64) -> Self {
+        self.expand(amount, amount)
+    }
+
+    pub fn round(self, precision: usize) -> Self {
+        let factor = 10f64.powi(precision as i32);
+        Self::new(
+            (self.x0 * factor).round() / factor,
+            (self.top * factor).round() / factor,
+            (self.x1 * factor).round() / factor,
+            (self.bottom * factor).round() / factor,
+        )
     }
 
     pub fn translate(self, dx: f64, dy: f64) -> Self {
@@ -349,6 +447,44 @@ pub struct ObjectCounts {
     pub hyperlinks: usize,
 }
 
+impl ObjectCounts {
+    pub fn total(&self) -> usize {
+        self.chars + self.lines + self.rects + self.curves + self.images + self.annots + self.hyperlinks
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.total() == 0
+    }
+}
+
+impl std::ops::Add for ObjectCounts {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            chars: self.chars + rhs.chars,
+            lines: self.lines + rhs.lines,
+            rects: self.rects + rhs.rects,
+            curves: self.curves + rhs.curves,
+            images: self.images + rhs.images,
+            annots: self.annots + rhs.annots,
+            hyperlinks: self.hyperlinks + rhs.hyperlinks,
+        }
+    }
+}
+
+impl std::ops::AddAssign for ObjectCounts {
+    fn add_assign(&mut self, rhs: Self) {
+        self.chars += rhs.chars;
+        self.lines += rhs.lines;
+        self.rects += rhs.rects;
+        self.curves += rhs.curves;
+        self.images += rhs.images;
+        self.annots += rhs.annots;
+        self.hyperlinks += rhs.hyperlinks;
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SearchMatch {
     pub text: String,
@@ -469,6 +605,44 @@ pub enum PageObjectRef<'a> {
     Hyperlink(&'a Hyperlink),
 }
 
+impl<'a> PageObjectRef<'a> {
+    pub fn object_type(&self) -> &'static str {
+        match self {
+            Self::Char(_) => "char",
+            Self::Line(_) => "line",
+            Self::Rect(_) => "rect",
+            Self::Curve(_) => "curve",
+            Self::Image(_) => "image",
+            Self::Annot(_) => "annot",
+            Self::Hyperlink(_) => "hyperlink",
+        }
+    }
+
+    pub fn page_number(&self) -> usize {
+        match self {
+            Self::Char(item) => item.page_number,
+            Self::Line(item) => item.page_number,
+            Self::Rect(item) => item.page_number,
+            Self::Curve(item) => item.page_number,
+            Self::Image(item) => item.page_number,
+            Self::Annot(item) => item.page_number,
+            Self::Hyperlink(item) => item.page_number,
+        }
+    }
+
+    pub fn bbox(&self) -> BBox {
+        match self {
+            Self::Char(item) => item.bbox(),
+            Self::Line(item) => item.bbox(),
+            Self::Rect(item) => item.bbox(),
+            Self::Curve(item) => item.bbox(),
+            Self::Image(item) => item.bbox(),
+            Self::Annot(item) => item.bbox(),
+            Self::Hyperlink(item) => item.bbox(),
+        }
+    }
+}
+
 pub trait Bounded: Clone {
     fn bbox(&self) -> BBox;
     fn with_bbox(&self, bbox: BBox, page_height: f64) -> Self;
@@ -555,5 +729,35 @@ impl Bounded for LayoutObject {
         copy.width = bbox.width();
         copy.height = bbox.height();
         copy
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bbox_normalizes_and_intersects() {
+        let bbox = BBox::new(10.0, 20.0, 0.0, 0.0).normalized();
+        assert_eq!(bbox, BBox::new(0.0, 0.0, 10.0, 20.0));
+        assert!(bbox.contains_point(Point::new(5.0, 5.0)));
+        assert_eq!(bbox.overlap(BBox::new(5.0, 10.0, 15.0, 30.0)), Some(BBox::new(5.0, 10.0, 10.0, 20.0)));
+        assert_eq!(bbox.intersection_area(BBox::new(5.0, 10.0, 15.0, 30.0)), 50.0);
+    }
+
+    #[test]
+    fn object_counts_add_and_total() {
+        let mut counts = ObjectCounts {
+            chars: 1,
+            lines: 2,
+            ..ObjectCounts::default()
+        };
+        counts += ObjectCounts {
+            rects: 3,
+            hyperlinks: 4,
+            ..ObjectCounts::default()
+        };
+        assert_eq!(counts.total(), 10);
+        assert!(!counts.is_empty());
     }
 }

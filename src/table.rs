@@ -114,6 +114,22 @@ impl TableSettings {
     }
 }
 
+pub fn table_rows_to_csv(rows: &[Vec<Option<String>>]) -> crate::Result<String> {
+    let mut output = Vec::new();
+    {
+        let mut writer = csv::Writer::from_writer(&mut output);
+        for row in rows {
+            let record = row
+                .iter()
+                .map(|cell| cell.as_deref().unwrap_or_default())
+                .collect::<Vec<_>>();
+            writer.write_record(record)?;
+        }
+        writer.flush()?;
+    }
+    String::from_utf8(output).map_err(|err| crate::Error::Message(err.to_string()))
+}
+
 #[derive(Debug, Clone)]
 pub struct CellGroup {
     pub cells: Vec<Option<BBox>>,
@@ -133,6 +149,22 @@ impl Table {
 
     pub fn columns(&self) -> Vec<CellGroup> {
         self.get_rows_or_cols(false)
+    }
+
+    pub fn row_count(&self) -> usize {
+        self.rows().len()
+    }
+
+    pub fn column_count(&self) -> usize {
+        self.columns().len()
+    }
+
+    pub fn shape(&self) -> (usize, usize) {
+        (self.row_count(), self.column_count())
+    }
+
+    pub fn extract_csv(&self, page: &Page, options: &TextOptions) -> crate::Result<String> {
+        table_rows_to_csv(&self.extract(page, options))
     }
 
     pub fn extract(&self, page: &Page, options: &TextOptions) -> Vec<Vec<Option<String>>> {
@@ -706,17 +738,19 @@ fn cells_to_tables(cells: &[BBox]) -> Vec<Vec<BBox>> {
 }
 
 fn char_in_bbox(ch: &Char, bbox: BBox) -> bool {
+    let bbox = bbox.normalized();
     let v_mid = (ch.top + ch.bottom) / 2.0;
     let h_mid = (ch.x0 + ch.x1) / 2.0;
     h_mid >= bbox.x0 && h_mid < bbox.x1 && v_mid >= bbox.top && v_mid < bbox.bottom
 }
 
 fn merge_bboxes(boxes: &[BBox]) -> BBox {
-    let x0 = boxes.iter().map(|bbox| bbox.x0).fold(f64::INFINITY, f64::min);
-    let top = boxes.iter().map(|bbox| bbox.top).fold(f64::INFINITY, f64::min);
-    let x1 = boxes.iter().map(|bbox| bbox.x1).fold(f64::NEG_INFINITY, f64::max);
-    let bottom = boxes.iter().map(|bbox| bbox.bottom).fold(f64::NEG_INFINITY, f64::max);
-    BBox::new(x0, top, x1, bottom)
+    boxes
+        .iter()
+        .copied()
+        .map(BBox::normalized)
+        .reduce(|acc, bbox| acc.union(bbox))
+        .unwrap_or_default()
 }
 
 fn merged_optional_bbox(boxes: &[Option<BBox>]) -> BBox {

@@ -205,4 +205,4 @@ MIT © [Clark Labs Inc.](https://github.com/clark-labs-inc)
 
 ---
 
-Built by **Clark Labs Inc.** — high-performance Rust tooling for document AI pipelines. If pdfsink-rs saves you time, a ⭐ on [GitHub](https://github.com/clark-labs-inc/pdfsink-rs) helps others discover it.
+Built by **Clark Labs Inc.** — the team behind [Clark Agent](https://www.clarkchat.com), AI-powered web automation and research. If pdfsink-rs saves you time, a ⭐ on [GitHub](https://github.com/clark-labs-inc/pdfsink-rs) helps others discover it.

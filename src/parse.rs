@@ -380,6 +380,32 @@ pub fn open_pdf<P: AsRef<std::path::Path>>(path: P) -> Result<crate::types::PdfD
     })
 }
 
+pub fn from_mem(path: String, buffer: &[u8]) -> Result<crate::types::PdfDocument> {
+    // let pathbuf = path.as_ref().to_path_buf();
+    let pathbuf = std::path::PathBuf::from(path);
+    let doc = Document::load_mem(&buffer)?;
+    let pages = doc.get_pages();
+
+    let mut parsed_pages = Vec::new();
+    let mut doctop_offset = 0.0;
+
+    let mut ordered: Vec<(u32, ObjectId)> = pages.into_iter().collect();
+    ordered.sort_by_key(|(page_number, _)| *page_number);
+
+    for (page_number, page_id) in ordered {
+        let page = parse_page(&doc, page_number as usize, page_id, doctop_offset)?;
+        doctop_offset += page.height;
+        parsed_pages.push(page);
+    }
+
+    Ok(crate::types::PdfDocument {
+        path: pathbuf,
+        pages: parsed_pages,
+        metadata: extract_metadata(&doc),
+        structure_tree: None,
+    })
+}
+
 fn parse_page(doc: &Document, page_number: usize, page_id: ObjectId, doctop_offset: f64) -> Result<Page> {
     let rotation = get_inherited_object(doc, page_id, b"Rotate")?
         .and_then(|obj| obj_to_i64(&obj))

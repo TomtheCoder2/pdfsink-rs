@@ -10,6 +10,7 @@ mod table;
 mod text;
 mod types;
 
+use lopdf::Document;
 pub use display::{HasBBox, HasCenter, HasLineSegments, PageImage, RenderOptions, RgbaColor};
 pub use error::{Error, Result};
 pub use parse::open_pdf;
@@ -27,10 +28,15 @@ pub use types::{
 pub type PDF = PdfDocument;
 
 use geometry::{crop_objects, outside_objects, test_proposed_bbox, within_objects};
+use crate::parse::from_mem;
 
 impl PdfDocument {
     pub fn open<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
         open_pdf(path)
+    }
+
+    pub fn open_from_mem(path: String, buffer: &[u8]) -> Result<Self> {
+        from_mem(path, buffer)
     }
 
     pub fn len(&self) -> usize {

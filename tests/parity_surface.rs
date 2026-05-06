@@ -60,3 +60,27 @@ fn layout_edges_and_rendering_are_available() {
         .debug_tablefinder(Some(TableSettings::default()))
         .expect("debug tablefinder overlay");
 }
+
+#[test]
+fn layout_edges_and_rendering_are_available_mem() {
+    // open fixture_path("table_lines.pdf") and save to a memory buffer
+    let path = fixture_path("table_lines.pdf");
+    let buffer = std::fs::read(path).expect("read fixture");
+    let pdf = PdfDocument::open_from_mem("path".to_string(), &*buffer).expect("open fixture");
+    let page = pdf.page(1).expect("page 1");
+
+    assert!(!page.edges().is_empty());
+    assert!(!page.horizontal_edges().is_empty());
+    assert!(!page.vertical_edges().is_empty());
+    assert!(!page.textlinehorizontals().is_empty());
+    assert!(!page.textboxhorizontals().is_empty());
+
+    let mut image = page
+        .to_image(Some(96.0), None, None, false, false)
+        .expect("page image");
+    assert!(image.width() > 0);
+    assert!(image.height() > 0);
+    image
+        .debug_tablefinder(Some(TableSettings::default()))
+        .expect("debug tablefinder overlay");
+}
